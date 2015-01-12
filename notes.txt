@@ -1,0 +1,33 @@
+Octree implementation is found in:
+spatial-collision-datastructures --> github.com
+
+
+Goals/problems as of 12/2
+-Get rid of single particle at end
+-Figure out if the current octree implementation is usable
+        -ISpatialObject vs. Octree and are more Octree methods needed?
+        Octree Notes:
+        -The method CheckMutualCollisions in octree.cpp marks particles as
+         collisionOn
+        -Check contains may be useful for boundary detection
+        -Don't understand what checkCollisions does
+        -An octreeNode is an ISpatialCell, each ISpatialObject has an 
+        ISpatialCell
+-Abstract particle movement and interation into octree
+-Research water movement
+-Implement better velocity/position algorithms for particles
+        -Think about surface water vs. water below surface
+
+ 12/4:
+
+ Go back and take out the extra id functions I added to ISpatialObject file and particle class
+
+ All particle collision action can take place in the particle class.
+
+Goals/Probems as of 12/6:
+-Implement better velocity/position algorithms for particles
+        -Think about surface water vs. water below surface
+        -Do this in the VCollision method in particle.cpp
+-Fix bug of collisions registering only about half of the time 
+-We now have a rotating cube, make the particles react accordingly
+

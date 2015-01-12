@@ -1,0 +1,69 @@
+\section{Evaluation}
+
+%Did you achieve success?  What metrics should we care about and why?  How did
+%you evaluate using those metrics, and what were the results?
+
+This project was an overall success.
+
+Our final output consists of two different scenes.  The first scene begins with a
+group of one thousand particles in the formation of a cube dropping into the tank. 
+(see Figure 1) 
+The particles then respond accordingly to particle-particle collisions and wall-particle
+collisions.  If the 'r' key is pressed, one thousand more particles enter the scene
+from another dropped cube.  The second scene shows fewer but much larger particles 
+coming from a single source at a certain time displacement.  This second scene makes
+the accuracy of the particle's behavior clearer to the viewer.  In either scene the
+camera can be rotated using the 'x', 'y', and 'z' keys and the cube can be rotated 
+using the 'a', 's', and 'd' keys.  These various scenes and interactions provide 
+evidence of a high level of understanding of different shaders, writing to VBOs,
+and particle interactions.
+
+The metrics used to evaluate our success include the following:
+\begin{itemize}
+  \item{A simulation of a particle system that can run in real-time}
+  \item{The ability to handle a large number of particles without sacrificing runtime}
+  \item{Accurate particle interations and collisions}
+  \item{Having a particle system interact with both a static and changing environment}
+  \item{Increased understanding of particle systems, octrees, and collision detection}
+  \item{Accurately modeling the movement of water}
+\end{itemize}
+
+A large measure of success was the ability to work with hundreds of particles in realtime.
+Because of the implementation of the octree described above, instead of having to check 
+every particle against every other particle to determine collisions, any given particle 
+had to be check against less than ten other particles.  Specifically, our octree was
+implemented so that it could subdivide up to twenty (however depth 5 seems optimal) 
+and a maximum of five particles
+can be stored in every node (octant).  While checking every particle against every 
+other particle would take $bigO$ from $O(n^2)$ with linear particle collision detection to
+much less with octree collision detection.  
+
+However, there are still clear limitations to the number of particles that can interact
+without seeing the performance suffer.  Our current implementation can handle approximately 
+two thousand particles before it begins to get sluggish and get hung up.  Given more time
+, it may be beneficial to try either different implementations of an octree or a different
+data structure altogether in order to obtain maximum performance.
+
+Another clear measure of success was the accuracy of the particle and wall collisions. 
+(The "large" mode of our final project shows these interactions most clearly.) These
+collisions model correct real-world physical behavior.  In addition, the particles reacting
+to the rotating cube provide further evidence of a robust implementation of particle
+interations with the environment.
+
+While originally, we were hoping to implement many more features of water dynamics, this
+goal proved to be too much given the time constraint.  However, we managed to do some 
+research on the properties of both pressure and viscosity of water and although they are 
+not fully or correctly functioning, we have applied them to our particle interations. 
+Although our goal of acurate water movement was not fully realized, the research done 
+and knowledge gained is a sign of success.  It is also a measure of our success that these 
+more acurate models of water can easily be incorporated into our design by simply adding
+methods to the particle class or changing the particle collision equation found in the
+particle-particle collision method.  
+
+Thus, while more work and reasearch could be done, this project provides a solid, robust,
+and well designed basis on which to build a more complex water simulation.  
+
+
+
+
+

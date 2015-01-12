@@ -1,0 +1,38 @@
+\section{Conclusion}
+
+%\emph{Briefly} summarize what you did.
+
+%What do you know now that you didn't at the time you started this project?
+%What does your work tell us? What could we do next given the current status of the project?
+
+In this project we successfully modeled a particle system which begins to approximate the
+movement of water.  The particle system allows for particle-particle collisions as well 
+as particle-wall collisions with the environment we created.  The use of an octree
+allowed for large performance benefits and the ability to introduce a much larger number 
+of particles into the system.  Finally, the particles were made to respond correctly to 
+transformations applied to the static environment.
+
+This project greatly expanded our knowlege in the areas of both graphics and physical 
+systems in general. First of all, we gained a lot of knowedge about vertex and fragment
+shaders.  We learned how to send information to these shaders as well as get information
+out of them and used them in more complex ways than we had in previous projects.  We also
+obtained a lot of knowlege about octrees, their structure, benefits, and implementation
+.  Although we imported the octree implementation from github, we had to incorporate it
+into our design and change the implementation to better work with our particle collisions
+. The properties of water that were researched also gave us some understanding of the
+physics involved in this type of physical system.  Finally, we have a solid understanding
+of particle systems.  We have learned about their basic features such as intialization
+and drawing as well as more complex ideas such as particles interacting with each other
+and with the environment.  By efficiently applying changes to single particles based on
+collisions we were able to model a much larger system.
+
+Given the current status of the project, some next steps include:
+\begin{itemize}
+  \item{Changing the color of particles depending on their depth and collisions}
+  \item{Applying more equations that model water-like movement (i.e. surface water movement,
+    waves, etc.)- particularly look into the Navier-Stokes and Euler equations of fluid dynamics}
+  \item{Making the particles react more fluidly to changes in their environment}
+  \item{Further improving runtime with an increased number of particles}
+  \item{Apply advanced rendering techniques to blend the individual particles together in order to make the visual output more similar to water}
+\end{itemize}
+

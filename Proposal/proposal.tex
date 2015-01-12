@@ -1,0 +1,128 @@
+\documentclass[dvips,12pt]{article}
+
+% Any percent sign marks a comment to the end of the line
+
+\usepackage[pdftex]{graphicx}
+\usepackage{url}
+
+% These are additional packages for "pdflatex", graphics, and to include
+% hyperlinks inside a document.
+
+\setlength{\oddsidemargin}{0.25in}
+\setlength{\textwidth}{6.5in}
+\setlength{\topmargin}{0in}
+\setlength{\textheight}{8.5in}
+
+% These force using more of the margins that is the default style
+
+\begin{document}
+
+% Everything after this becomes content
+% Replace the text between curly brackets with your own
+
+\title{\textbf{Project Proposal}}
+\author{Zoe Junghans, Jess Karol}
+\date{\today}
+
+% You can leave out "date" and it will be added automatically for today
+% You can change the "\today" date to any text you like
+
+
+\maketitle
+
+% This command causes the title to be created in the document
+
+\section{Introduction}
+
+% An article style is separated into sections and subsections with 
+%   markup such as this.  Use \section*{Principles} for unnumbered sections.
+
+\indent{\indent{ 
+For the CSPC 040 Final Project, we are going to implement a partical system
+that attempts to model water. While this is our end goal, we are going to 
+work toward several intermediate milestones. First, we will implement a particle 
+system with only a few particles that can interact with the scene. Then, we
+will implement the ability for particles to interact with eachother. Next, we
+will try to have a large number of particles. After we accomplish these tasks, 
+we will begin researching how to model water and try to implement these methods.
+The final output will hopefully look like water flowing from a source (i.e a pipe)
+and filling up a tank. We believe this project is an ambitious project, so we 
+are going to take it one step at a time and see where we end up.}}
+
+Our motivations for this project includes the desire to model a non-linear physical
+system, implement a dynamic particle animation in real time, and extend some
+of the topics we covered in class. While we discussed particle systems in class, we
+never actually had the opportunity to implement one, so we see this project as a means
+of exploring this topic in greater depth. Also, we are excited to write the final paper
+in \LaTeX\/ because it is good practice and will help us learn the basics. 
+
+We will use the particle fountain from the in-class example as our starter code. We will
+be investigating collision detection on a large scale, and dynamic second order movement.
+We will be using QT to create the GUI and animation, and we will be programming in C++ 
+using OpenGL and possibly CUDA to parallelize algorithms. 
+
+As we already mentioned, we will be using the particle fountain code. Also, we might 
+import or adapt some mathematical modeling tools to improve our particle movement or
+water simulation. The code we intend to write involves particle collision detection
+and interaction. 
+\newpage
+
+\section{Goals and Timeline}
+
+\textbf{Short Term:}
+\begin{itemize}
+  \item Nov 12 - Nov 19: Hand in project proposal and have starter code ready for Wednesday lab.
+  \item Nov 20 - Nov 26: Implement particles interacting with scene and possibly each other for
+  a few particles.
+  \item Nov 27 - Dec 3: Short week due to Thanksgiving. Start working toward adding more
+  particles while keeping run time reasonable.
+  \item Dec 4 - Dec 10: Finish having many particles interact with each other. Start thinking about
+  how to model water. Implement more advanced models of water and start figuring out how to make
+  the water look more aqueous.
+  \item Dec 10 - Dec 19: Finish up report and continue to improve our lab.
+\end{itemize}
+
+\noindent{\textbf{Long Term:}}
+\begin{itemize}
+  \item A successful implementation is a model that seems to represent the movement of water and interact with scene objects as does water but may not look completely realistic. The model may look like many particles and not smooth or laminar. See Figure 1.
+\end{itemize}
+
+\noindent{\textbf{Reach Goals:}}
+\begin{itemize}
+  \item A very realistic model of water with lighting and smoothness. see Figure 2.
+  \item A super reach goal is user interaction with the water. ie. clicking to make 
+  ripples in the water or moving water mass around with a mouse drag.
+\end{itemize}
+
+\noindent{\textbf{Evaluation of Success:}} \newline
+
+A successful project will include finishing with a detailed understanding of particle simulations,
+particle interactions, and water dynamics. We hope to work with large amounts of particles without
+sacrificing efficiency. To do this, we will learn about data structures optimized for graphics 
+such as octrees or k-d trees. The appearance of our outcome will also be a measure of success.
+
+
+\begin{figure}
+\begin{center}
+\resizebox{6in}{!}{\includegraphics*{point_sprite_spheres_02.png}}
+\end{center}
+
+\caption{This is a point sprite particle model of water. This image was foun via
+google images and originates from the following website \url{https://developer.nvidia.com/content/fluid-simulation-alice-madness-returns}
+\label{m42}}
+
+\end{figure}
+
+ 
+\begin{figure}
+\begin{center}
+\resizebox{6in}{!}{\includegraphics*{realisticwater.jpg}}
+\end{center}
+
+\caption{This is a realistic model of water. It would be a reach, but feasible for our water to look like this. This image was found via google images and originates from the following website \url{http://www.google.com/url?sa=i&rct=j&q=&esrc=s&source=images&cd=&cad=rja&uact=8&ved=0CAcQjRw&url=http}
+\label{m43}}
+
+\end{figure}
+
+
+\end{document}

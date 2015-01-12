@@ -1,0 +1,944 @@
+#include "mypanelopengl.h"
+#include "common/matrixstack.h"
+#include <cmath>
+#include <iostream>
+#include <math.h>
+
+using std::cout;
+using std::endl;
+using cs40::Sphere;
+using cs40::MatrixStack;
+
+MyPanelOpenGL::MyPanelOpenGL(QWidget *parent) :
+  QGLWidget(parent), m_angles(0,0,0){
+
+    for(int i=0; i<CS40_NUM_PROGS; i++){
+      m_shaderPrograms[i]=NULL;
+      m_vertexShaders[i]=NULL;
+      m_fragmentShaders[i]=NULL;
+    }
+
+    m_sphere = NULL;
+    m_sphereSize = 10;
+    m_polyMode = 0;
+    m_curr_prog = 0;
+    m_nparticles = 1000;
+    orignum = m_nparticles;
+    m_fountain = NULL;
+    m_timer = NULL;
+    m_time = 0;
+    srand(time(NULL));
+
+    vboData = NULL;
+    index = 0;
+    rotate = false;
+
+    numVertices = 36; //(6 faces)(2 triangles/face)(3 vertices/triangle)
+    points = new point4[numVertices];
+    colors = new color4[numVertices];
+   // partColors = new float[m_nparticles * 4];
+
+    vertices = new point4[8];
+    vertex_colors = new color4[8];
+    theta = vec3(0,0,0);
+
+    //2 in octree, and 1.45 here give collisions
+    list = new Octree(Vector3(0,0,0), 1.1, 0);
+  }
+
+MyPanelOpenGL::~MyPanelOpenGL(){
+
+  delete m_sphere; m_sphere=NULL;
+  delete m_timer; m_timer=NULL;
+  if(m_fountain){
+    m_fountain->release();
+    delete m_fountain; m_fountain=NULL;
+  }
+
+  for(int i = 0; i < m_nparticles; i++){
+      delete allParticles[i];
+  }
+
+  for(int i=0; i<CS40_NUM_PROGS; i++){
+    destroyShaders(i);
+  }
+
+  delete vertices;
+  delete list;
+  delete vertex_colors;
+
+  destroyVBO();
+  //make sure to delete list and the particle array
+}
+
+//void MyPanelOpenGL::cleanUp(){
+
+//}
+
+void MyPanelOpenGL::initializeGL()
+{
+
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_TEXTURE_2D);
+
+  //this line of code mess up the x
+  //updatePolyMode(m_polyMode);
+
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+  makeCube();
+
+  //createShaders(0, "vshader.glsl", "fshader.glsl");
+  createShaders(0, "vshader2.glsl", "fshader2.glsl");
+  //createShaders(2,"vshader3.glsl", "fshader3.glsl");
+  createShaders(1,"vshader4.glsl", "fshader4.glsl");
+
+  //createVBO();
+
+  //m_shaderPrograms[1]->bind();
+  //m_shaderPrograms[3]->bind();
+
+  QPixmap img("data/ball.png");
+  m_texture = bindTexture(img, GL_TEXTURE_2D);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, m_texture);
+
+  m_sphere = new Sphere(0.5,30,30);
+  makeFountainSmall(0);
+
+  //cout << m_curr_prog << endl;
+
+  m_projection.perspective(40,1,1,8);
+  m_camera.lookAt(vec3(0,0,3),vec3(0,0,0),vec3(0,1.,0.));
+  updateModel();
+
+  m_timer = new QTimer(this);
+  connect(m_timer, SIGNAL(timeout()), this, SLOT(step()));
+  m_timer->start(10);
+
+}
+
+void MyPanelOpenGL::step(){
+  updateTime();
+  //updateAngles(0,0.5);
+  updateGL();
+}
+
+void MyPanelOpenGL::updateTime(){
+  m_time += 0.01;
+  //cout << m_time << endl;
+}
+
+void MyPanelOpenGL::resizeGL(int w, int h)
+{
+  glViewport(0,0,w, h);
+
+}
+
+void MyPanelOpenGL::paintGL(){
+  /* clear both color and depth buffer */
+  //updatePolyMode(100);
+  glDisable(GL_POINT_SPRITE);
+  glDisable(GL_BLEND);
+  glDepthMask(GL_TRUE);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  //two calls, one static one draw particles
+  paintStatic();
+
+  //when this line is added in, causes problems with seeing the cube
+  paintParticles();
+
+  //swapBuffers(); /* not need in QT see QGLWidget::setAutoBufferSwap */
+}
+
+void MyPanelOpenGL::paintStatic(){
+
+    //For transparency
+    glDepthMask(GL_FALSE);
+
+    m_curr_prog = 1;
+    if(!m_shaderPrograms[m_curr_prog]){return; }
+    vboData->bind();
+    if(!vboData){
+        return;
+    }
+    m_shaderPrograms[m_curr_prog]->bind();
+    m_shaderPrograms[m_curr_prog]->enableAttributeArray("vPosition");
+    m_shaderPrograms[m_curr_prog]->setAttributeBuffer("vPosition", GL_FLOAT, 0, 4, 0);
+
+    m_shaderPrograms[m_curr_prog]->enableAttributeArray("vColor");
+    m_shaderPrograms[m_curr_prog]->setAttributeBuffer("vColor", GL_FLOAT,
+                                      numVertices*sizeof(point4),4,0);
+
+    //m_shaderPrograms[m_curr_prog]->setUniformValue("theta", angles);
+
+    mat4 mview = m_camera*m_model;
+    m_shaderPrograms[m_curr_prog]->setUniformValue("projection",m_projection);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("camera",m_camera);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("model", m_model);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("modelView",mview);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("normalMatrix",mview.normalMatrix());
+    m_shaderPrograms[m_curr_prog]->setUniformValue("lightPos",vec4(1.5,0,2,1.)); //in world coordinates
+
+    glDrawArrays(GL_TRIANGLES, 0, numVertices);
+
+    glFlush();
+    m_shaderPrograms[m_curr_prog]->release();
+
+    //need to realease vbo?
+    vboData->release();
+
+}
+
+void MyPanelOpenGL::paintParticles(){
+
+    m_curr_prog = 0;
+
+    if(!m_shaderPrograms[m_curr_prog]){return;}
+    m_shaderPrograms[m_curr_prog]->bind();
+    mat4 mview = m_camera*m_model;
+    m_shaderPrograms[m_curr_prog]->setUniformValue("projection",m_projection);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("camera",m_camera);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("model", m_model);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("modelView",mview);
+    m_shaderPrograms[m_curr_prog]->setUniformValue("normalMatrix",mview.normalMatrix());
+    m_shaderPrograms[m_curr_prog]->setUniformValue("lightPos",vec4(1.5,0,2,1.)); //in world coordinates
+
+    // added these lines to get different colors
+    m_shaderPrograms[m_curr_prog]->enableAttributeArray("vColor");
+    m_shaderPrograms[m_curr_prog]->setAttributeBuffer("vColor", GL_FLOAT,
+                                      numVertices*sizeof(point4),4,0);
+
+    //makes helix
+    //m_sphere->draw(m_shaderPrograms[m_curr_prog]);
+    updatePolyMode(100);
+
+    //Changes the size of the particles
+    glPointSize(m_sphereSize);
+
+    glEnable(GL_POINT_SPRITE);
+    glEnable(GL_BLEND);
+    glDepthMask(GL_FALSE);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    drawFountain();
+
+    glFlush();
+    m_shaderPrograms[m_curr_prog]->release();
+}
+
+void MyPanelOpenGL::paintSmall(){
+
+    for(int i = 0; i < m_nparticles; i++){
+        delete allParticles[i];
+    }
+
+    //delete vertices;
+    //vertices = new point4[8];
+    m_angles = vec3(0,0,0);
+    updateAngles(0,0);
+    //problem with asd rotation
+    index = 0;
+    makeCube();
+
+    m_nparticles = 1000;
+    m_sphereSize = 10;
+    delete list;
+    list = new Octree(Vector3(0,0,0), 1.1, 0);
+    m_time = 0;
+    //delete partColors;
+    //partColors = new vec4[m_nparticles];
+    makeFountainSmall(0);
+
+
+    //makeOctree();
+   // cout<< "small" << endl;
+
+    paintGL();
+
+}
+
+void MyPanelOpenGL::paintLarge(){
+
+    for(int i = 0; i < m_nparticles; i++){
+        delete allParticles[i];
+    }
+
+    // vertices;
+   // vertices = new point4[8];
+    m_angles = vec3(0,0,0);
+    updateAngles(0,0);
+    index = 0;
+    makeCube();
+
+    //cout << "large" << endl;
+    m_nparticles = 64;
+    m_sphereSize = 30;
+    delete list;
+    list = new Octree(Vector3(0,0,0), 1.1, 0);
+    m_time = 0;
+    //partColors = new vec4[m_nparticles];
+    makeFountainLarge();
+
+    //makeOctree();
+
+    updateGL();
+}
+
+void MyPanelOpenGL::keyPressEvent(QKeyEvent *event)
+{
+  qreal step=1;
+  /*Enable strong Focus on GL Widget to process key events*/
+  switch(event->key()){
+    case Qt::Key_X:
+      if (event->text()=="x"){updateAngles(0,step);}
+      else{updateAngles(0,-step);}
+      break;
+    case Qt::Key_Y:
+      if (event->text()=="y"){ updateAngles(1,step);}
+      else{ updateAngles(1,-step);}
+      break;
+    case Qt::Key_Z:
+      if (event->text()=="z"){updateAngles(2,step);}
+      else{updateAngles(2,-step);}
+      break;
+    case Qt::Key_C:
+      if(glIsEnabled(GL_CULL_FACE)){glDisable(GL_CULL_FACE);}
+      else{glEnable(GL_CULL_FACE);}
+      break;
+    case Qt::Key_P:
+      m_polyMode = (m_polyMode+1)%3;
+      updatePolyMode(m_polyMode);
+      break;
+    case Qt::Key_U:
+      updateTime();
+      break;
+    case Qt::Key_A:
+      if (event->text()=="a"){rotateCube(-1);}
+      else{rotateCube(1);}
+      break;
+    case Qt::Key_S:
+      if (event->text()=="s"){rotateCube(-2);}
+      else{rotateCube(2);}
+      break;
+    case Qt::Key_D:
+      if (event->text()=="d"){rotateCube(-3);}
+      else{rotateCube(3);}
+      break;
+    case Qt::Key_R:
+      if(m_nparticles + orignum > 2000){
+          break;
+      }
+      //int x = m_nparticles + 1000;
+      //cs40::Particle* temp[m_nparticles];
+      //for(int i = 0; i<m_nparticles; i++){
+      //    temp[i] = allParticles[i];
+      //}
+      //allParticles=temp;
+
+      delete list;
+      list = new Octree(Vector3(0,0,0), 1.1, 0);
+      m_nparticles += orignum;
+      makeFountainSmall(m_nparticles-orignum-1);
+      break;
+    default:
+      QWidget::keyPressEvent(event); /* pass to base class */
+  }
+  updateGL();
+}
+
+float MyPanelOpenGL::randFloat(){
+  static int digits = 10000;
+  return (rand() % digits)/(1.*digits);
+}
+
+void MyPanelOpenGL::makeFountainSmall(int index){
+  //Chapter 9 OpenGL 4.0 GLSL cookbook
+    if(m_fountain){
+      m_fountain->release();
+      delete m_fountain; m_fountain=NULL;
+    }
+  m_fountain = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+  bool ok = m_fountain->create();
+  if(!ok){
+    cout << "Unable to create VBO" << endl;
+  }
+  m_fountain->setUsagePattern(QOpenGLBuffer::DynamicDraw);
+
+  vec3 v(0,0,0);
+  float velocity, theta, phi;
+  data = new float[m_nparticles*3]; //Initial velocities of particles
+  partColors = new float[m_nparticles * 4];
+  int ind = index;
+  float b = 0.45;
+  for (int i=0; i<cbrt(m_nparticles); i++){
+    for (int j = 0; j<cbrt(m_nparticles); j++){
+      for (int k = 0; k<cbrt(m_nparticles);k++){
+        if (ind < m_nparticles){
+          theta = randFloat()*M_PI/8.+0.5;
+          //Gives a 360 circle
+          phi = randFloat()*2*M_PI;
+          //v.set.707);
+          v.setX(-fabs(sin(theta) * cos(phi)) * 3);
+          //v.setY(.707);
+          v.setY(cos(theta));
+          //v.setZ(0);
+          v.setZ(sin(theta)*sin(phi));
+          //Radius of circle particles all make when they spread out
+          velocity = .25 + 0.1*randFloat();
+          //velocity = 1.25 ;
+          v *= velocity;
+          data[3*(ind)] = v.x();
+          data[3*(ind)+1] = v.y();
+          data[3*(ind)+2] = v.z();
+          //partColors[ind] = vec4(.3,.4, b, 1.);
+          //partColors[ind] = vec4(i/3,j/3, 0.8,1.);
+          partColors[3*(ind)] = i/3;
+          partColors[3*(ind)+1] = i/3;
+          partColors[3*(ind)+2] = 0.8;
+          partColors[3*(ind)+3] = 1;
+
+          vec3 offset = vec3(.25,-1,.25);
+          allParticles[ind] = new cs40::Particle(vec3(i,j,k)/20 - offset, v);
+          ind++;
+        }
+      }
+          b+=0.05;
+    }
+
+    b = 0.45;
+  }
+
+  times = new float[m_nparticles]; //Initial start time of particles
+  float time_now = 0, time_step=0.0;
+  for (int i=index; i<m_nparticles; i++){
+    times[i] = time_now;
+    allParticles[i]->startTime = time_now; //add start times as a variable to particle
+    time_now += time_step;
+    allParticles[i]->VSetRadius(0.014);
+    allParticles[i]->VCollisionOff();
+
+  }
+
+  makeOctree();
+
+  m_fountain->bind();
+  m_fountain->allocate(m_nparticles*(sizeof(vec3) + sizeof(float))*m_nparticles + m_nparticles*(sizeof(vec4)));
+  //cout << data[0] << endl;
+  m_fountain->write(0, data, m_nparticles*sizeof(vec3));
+  m_fountain->write(m_nparticles*sizeof(vec3),times,m_nparticles*sizeof(float));
+  m_fountain->write((m_nparticles*sizeof(vec3)) + (sizeof(float)*m_nparticles), partColors, m_nparticles*sizeof(vec4));
+  m_fountain->release();
+}
+
+void MyPanelOpenGL::makeFountainLarge(){
+  //Chapter 9 OpenGL 4.0 GLSL cookbook
+    if(m_fountain){
+      m_fountain->release();
+      delete m_fountain; m_fountain=NULL;
+    }
+  m_fountain = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+  bool ok = m_fountain->create();
+  if(!ok){
+    cout << "Unable to create VBO" << endl;
+  }
+  m_fountain->setUsagePattern(QOpenGLBuffer::DynamicDraw);
+
+  vec3 v(0,0,0);
+  float velocity, theta, phi;
+  data = new float[m_nparticles*3]; //Initial velocities of particles
+  partColors = new float[m_nparticles * 4];
+  int ind = 0;
+  for (int i=0; i<m_nparticles; i++){
+      //if (ind < m_nparticles){
+          theta = randFloat()*M_PI/8.+0.5;
+          //Gives a 360 circle
+          phi = randFloat()*M_PI;
+          v.setX(-50);
+          //v.setX(-fabs(sin(theta) * cos(phi)) * 3);
+          //v.setY(.707);
+          v.setY(cos(theta));
+          //v.setZ(0);
+          v.setZ(sin(theta)*sin(phi));
+          //Radius of circle particles all make when they spread out
+          velocity = .25 + 0.1*randFloat();
+          //velocity = 1.25 ;
+          v *= velocity;
+          data[3*(i)] = v.x();
+          data[3*(i)+1] = v.y();
+          data[3*(i)+2] = v.z();
+          //partColors[ind] = vec4(0.52,0.81,0.98,1.);
+          partColors[3*(ind)] = 0.52;
+          partColors[3*(ind)+1] = 0.81;
+          partColors[3*(ind)+2] = 0.98;
+          partColors[3*(ind)+3] = 1;
+          //vec3 offset = vec3(.25,-1,.25);
+          allParticles[i] = new cs40::Particle(vec3(0.4,1,0), v);
+          //ind++;
+     // }
+  }
+
+  if(times){
+      delete times;
+  }
+  times = new float[m_nparticles]; //Initial start time of particles
+  float time_now = 0, time_step=0.2;
+  for (int i=0; i<m_nparticles; i++){
+    times[i] = time_now;
+    allParticles[i]->startTime = time_now; //add start times as a variable to particle
+    time_now += time_step;
+    allParticles[i]->VSetRadius(0.08);
+    allParticles[i]->VCollisionOff();
+  }
+
+  makeOctree();
+
+  m_fountain->bind();
+  m_fountain->allocate(m_nparticles*(sizeof(vec3) + sizeof(float))*m_nparticles + m_nparticles*(sizeof(vec4)));
+  m_fountain->write(0,data,m_nparticles*sizeof(vec3));
+  m_fountain->write(m_nparticles*sizeof(vec3),times,m_nparticles*sizeof(float));
+  m_fountain->write((m_nparticles*sizeof(vec3)) + (sizeof(float)*m_nparticles), partColors, m_nparticles*sizeof(vec4));
+  m_fountain->release();
+}
+
+void MyPanelOpenGL::makeOctree(){
+
+    std::vector <ISpatialObject*> toAdd;
+
+    for(int i = 0; i <m_nparticles; i++){
+         toAdd.push_back(allParticles[i]);
+    }
+
+    list->VAddObjects(toAdd);
+}
+
+void MyPanelOpenGL::drawFountain(){
+
+  m_fountain->bind();
+
+  //if(!rotate){
+  intersect();
+  //particleCollisions();
+ //}
+
+  for(int i = 0; i < m_nparticles; i++){
+      allParticles[i]->updatePosition(m_time);
+      //allParticles[i]->VCollisionOff();
+  }
+
+  list->VUpdate();
+
+  for(int i = 0; i < m_nparticles; i++){
+      data[3*i] = allParticles[i]->pos.x();
+      data[3*i+1] = allParticles[i]->pos.y();
+      data[3*i+2] = allParticles[i]->pos.z();
+      //cout << allParticles[i]->VGetCollisionStatus() << endl;
+  }
+
+
+  m_fountain->write(0,data,m_nparticles*sizeof(vec3));
+  m_fountain->write(m_nparticles*sizeof(vec3),times,m_nparticles*sizeof(float));
+
+  m_shaderPrograms[m_curr_prog]->setUniformValue("vColor",vec4(0.52,0.81,0.98,1.));
+  m_shaderPrograms[m_curr_prog]->setUniformValue("vSColor",vec4(1.,1.,1.,1.));
+  m_shaderPrograms[m_curr_prog]->setUniformValue("Tex0",0);
+  m_shaderPrograms[m_curr_prog]->enableAttributeArray("vPosition");
+  m_shaderPrograms[m_curr_prog]->setAttributeBuffer("vPosition",GL_FLOAT,0,3,0);
+  m_shaderPrograms[m_curr_prog]->enableAttributeArray("startTime");
+  m_shaderPrograms[m_curr_prog]->setAttributeBuffer("startTime",GL_FLOAT,m_nparticles*sizeof(vec3),1,0);
+  m_shaderPrograms[m_curr_prog]->enableAttributeArray("colors");
+  m_shaderPrograms[m_curr_prog]->setAttributeBuffer("colors", GL_FLOAT,m_nparticles*sizeof(vec3)+ m_nparticles*sizeof(float), 4, 0);
+  m_shaderPrograms[m_curr_prog]->setUniformValue("global_time",m_time);
+  //cout << allParticles[i]->pos.x() << endl;
+  glDrawArrays(GL_POINTS, 0, m_nparticles);
+  glFlush();
+
+  m_fountain->release();
+}
+
+void MyPanelOpenGL::updateAngles(int idx, qreal amt){
+  if(idx == 0){
+    m_angles.setX(wrap(m_angles.x()+amt));
+  }else if(idx == 1){
+    m_angles.setY(wrap(m_angles.y()+amt));
+  }else if(idx == 2){
+    m_angles.setZ(wrap(m_angles.z()+amt));
+  }
+  updateModel();
+}
+
+void MyPanelOpenGL::updateModel(){
+  m_model.setToIdentity();
+  //could make two different m_models if don't want particles to rotate
+  m_model.rotate(m_angles.z(), vec3(0,0,1.));
+  m_model.rotate(m_angles.y(), vec3(0,1,0.));
+  m_model.rotate(m_angles.x(), vec3(1,0,0.));
+}
+
+qreal MyPanelOpenGL::wrap(qreal amt){
+  if (amt > 360.){ return amt - 360.; }
+  else if (amt < 0.){ return amt + 360.; }
+  return amt;
+}
+
+void MyPanelOpenGL::updatePolyMode(int val){
+  GLenum mode=GL_NONE;
+  if(val==0){mode=GL_POINT;}
+  else if(val==1){mode=GL_LINE;}
+  else if(val==2){mode=GL_FILL;}
+
+  if(mode != GL_NONE){
+    glPolygonMode(GL_FRONT_AND_BACK, mode);
+  }
+  //glPolygonMode(GL_BACK,GL_POINT);
+}
+
+void MyPanelOpenGL::createShaders(int i, QString vertName, QString fragName){
+
+  cout << "building shader " << i << endl;
+
+  //cause null pointer problems
+  //destroyShaders(i); //get rid of any old shaders
+  //destroySceneShader();
+
+  m_vertexShaders[i] = new QOpenGLShader(QOpenGLShader::Vertex);
+  if (!m_vertexShaders[i]->compileSourceFile(vertName)){
+    qWarning() << m_vertexShaders[i]->log();
+  }
+
+  m_fragmentShaders[i] = new QOpenGLShader(QOpenGLShader::Fragment);
+  if(!m_fragmentShaders[i]->compileSourceFile(fragName)){
+    qWarning() << m_fragmentShaders[i]->log();
+  }
+
+  m_shaderPrograms[i] = new QOpenGLShaderProgram();
+  m_shaderPrograms[i]->addShader(m_vertexShaders[i]);
+  m_shaderPrograms[i]->addShader(m_fragmentShaders[i]);
+
+  if(!m_shaderPrograms[i]->link()){
+    qWarning() << m_shaderPrograms[i]->log() << endl;
+  }
+}
+
+void MyPanelOpenGL::destroyShaders(int i){
+
+  delete m_vertexShaders[i]; m_vertexShaders[i]=NULL;
+  delete m_fragmentShaders[i]; m_fragmentShaders[i]=NULL;
+
+  if(m_shaderPrograms[i]){
+    m_shaderPrograms[i]->release();
+    delete m_shaderPrograms[i]; m_shaderPrograms[i]=NULL;
+  }
+}
+
+void MyPanelOpenGL::makeCube(){
+
+    /* setup 8 corners of cube */
+    vertices[0] = point4( -0.5, -0.5,  0.5, 1.0 );
+    vertices[1] = point4( -0.5,  0.5,  0.5, 1.0 );
+    vertices[2] = point4(  0.5,  0.5,  0.5, 1.0 );
+    vertices[3] = point4(  0.5, -0.5,  0.5, 1.0 );
+    vertices[4] = point4( -0.5, -0.5, -0.5, 1.0 );
+    vertices[5] = point4( -0.5,  0.5, -0.5, 1.0 );
+    vertices[6] = point4(  0.5,  0.5, -0.5, 1.0 );
+    vertices[7] = point4(  0.5, -0.5, -0.5, 1.0 );
+
+    /* assign one color to each corner */
+    vertex_colors[0] = color4( 0.1, 0.1, 0.1, 1.0 );
+    vertex_colors[1] = color4( 0.2, 0.2, 0.2, 1.0 );
+    vertex_colors[2] = color4( 0.3, 0.3, 0.3, 1.0 );
+    vertex_colors[3] = color4( 0.4, 0.4, 0.4, 1.0 );
+    vertex_colors[4] = color4( 0.5, 0.5, 0.5, 1.0 );
+    vertex_colors[5] = color4( 0.6, 0.6, 0.6, 1.0 );
+    vertex_colors[6] = color4( 0.8, 0.8, 0.8, 1.0 );
+    vertex_colors[7] = color4( 0.7, 0.7, 0.7, 1.0 );
+
+    /* construct faces of cube */
+    //front
+    quad( 1, 0, 3, 2 );
+    //right
+    quad( 2, 3, 7, 6 );
+    //bottom
+    quad( 3, 0, 4, 7 );
+    //top
+    quad( 6, 5, 1, 2 );
+    //back
+    quad( 4, 5, 6, 7 );
+    //left
+    quad( 5, 4, 0, 1 );
+
+    //delete [] vertices; vertices=NULL;
+    //delete [] vertex_colors; vertex_colors=NULL;
+
+    createVBO();
+}
+
+void MyPanelOpenGL::quad(int a, int b, int c, int d){
+    /* static variable initialized once. same var (though different value)
+     * used on all function calls. a 'mini global' variable */
+
+    /* first triangle */
+    colors[index] = vertex_colors[a]; points[index] = vertices[a]; index++;
+    colors[index] = vertex_colors[a]; points[index] = vertices[b]; index++;
+    colors[index] = vertex_colors[a]; points[index] = vertices[c]; index++;
+    /* second triangle */
+    colors[index] = vertex_colors[a]; points[index] = vertices[a]; index++;
+    colors[index] = vertex_colors[a]; points[index] = vertices[c]; index++;
+    colors[index] = vertex_colors[a]; points[index] = vertices[d]; index++;
+}
+
+void MyPanelOpenGL::rotateCube(int ind){
+
+    //to rotate cube, apply rotation matrix to each vertex. R = [cos(theta) -sin(theta)]
+    //                                                          [sin(theta)  cos(theta)]
+
+    theta = (abs(ind)/ind) *vec3(M_PI/2,M_PI/2,M_PI/2);
+
+    mat4 XRotation = mat4(1, 0, 0, 0,
+                          0, cos(theta.x() * (M_PI/180.)), -sin(theta.x()* (M_PI/180.)), 0,
+                          0, sin(theta.x()* (M_PI/180.)), cos(theta.x()* (M_PI/180.)), 0,
+                          0, 0, 0, 1);
+    mat4 YRotation = mat4(cos(theta.y()* (M_PI/180.)), 0, sin(theta.y()* (M_PI/180.)), 0,
+                          0, 1, 0, 0,
+                          -sin(theta.y()* (M_PI/180.)), 0, cos(theta.y()* (M_PI/180.)), 0,
+                          0, 0, 0, 1);
+    mat4 ZRotation = mat4(cos(theta.z()* (M_PI/180.)), -sin(theta.z()* (M_PI/180.)), 0, 0,
+                          sin(theta.z()* (M_PI/180.)), cos(theta.z()* (M_PI/180.)), 0, 0,
+                          0, 0, 1, 0,
+                          0, 0, 0, 1);
+
+    mat4 apply;
+
+    if(abs(ind) == 1){
+      apply = XRotation;
+    }
+    else if(abs(ind) == 2){
+      apply = YRotation;
+    }
+    else if(abs(ind) == 3){
+      apply = ZRotation;
+    }
+
+    for(int i = 0; i < 8; i++){
+        vertices[i] = vertices[i]*apply;
+    }
+
+    index = 0;
+    quad( 1, 0, 3, 2 );
+    //right
+    quad( 2, 3, 7, 6 );
+    //bottom
+    quad( 3, 0, 4, 7 );
+    //top
+    quad( 6, 5, 1, 2 );
+    //back
+    quad( 4, 5, 6, 7 );
+    //left
+    quad( 5, 4, 0, 1 );
+
+    createVBO();
+
+    rotate = true;
+
+    for(int i =0; i < m_nparticles; i++){
+        allParticles[i]->pos = allParticles[i]->pos * apply;
+        allParticles[i]->VCollisionOff();
+        allParticles[i]->updatePosition(m_time);
+    }
+    //list->VUpdate();
+
+    updateGL();
+
+    rotate = false;
+}
+
+void MyPanelOpenGL::particleCollisions(){
+
+    //current problem: two particles are colliding and their directions are reversed but they do not have enough time to get away
+    //from each other before their collisions are checked again and they are found to collide
+    //try to get info from which particle it collided with?
+
+    /*
+    for(int i =0; i<m_nparticles; i++){
+        vec3 toExamine = allParticles[i]->pos;
+        for(int j = 0; j<m_nparticles; j++){
+            vec3 compare = allParticles[j]->pos;
+            if(m_time > 2 && i!=j
+                    && fabs(toExamine.x()-compare.x()) < 0.02
+                    && fabs(toExamine.y()-compare.y()) < 0.02
+                    && fabs(toExamine.z()-compare.z()) < 0.02){
+            //if(i!=j && qFuzzyCompare(toExamine,compare)){
+                //cout << "collision " << i << "!" << endl;
+                allParticles[i]->pos = allParticles[i]->previousPos;
+                allParticles[i]->initialPos = allParticles[i]->pos;
+                allParticles[i]->startTime = m_time;
+                allParticles[i]->vel = allParticles[i]->friction *-allParticles[i]->vel;
+                //allParticles[i]->vel = vec3(1000,1000,1000);
+
+                allParticles[j]->pos = allParticles[j]->previousPos;
+                allParticles[j]->initialPos = allParticles[j]->pos;
+                allParticles[j]->startTime = m_time;
+                allParticles[j]->vel = allParticles[j]->friction * -allParticles[j]->vel;
+                //allParticles[j]->vel = vec3(1000,1000,1000);
+            }
+        }
+    }
+    */
+}
+
+bool MyPanelOpenGL::intersect(){
+
+     for(int i = 0; i < m_nparticles; i++){
+       vec3 toExamine = allParticles[i]->pos;
+       vec3 velocity = allParticles[i]->vel;
+       //vec3 prev = allParticles[i]->previousPos;
+
+            //bottom
+            vec3 lr = vertices[3].toVector3D();
+            vec3 ll = vertices[0].toVector3D();
+            vec3 ur = vertices[7].toVector3D();
+
+            //right
+            vec3 lr1 = vertices[2].toVector3D();
+            vec3 ll1 = vertices[3].toVector3D();
+            vec3 ur1 = vertices[6].toVector3D();
+
+            //left
+            vec3 lr2 = vertices[5].toVector3D();
+            vec3 ll2 = vertices[4].toVector3D();
+            vec3 ur2 = vertices[1].toVector3D();
+
+            //back
+            vec3 lr3 = vertices[4].toVector3D();
+            vec3 ll3 = vertices[5].toVector3D();
+            vec3 ur3 = vertices[7].toVector3D();
+
+            //front
+            vec3 lr4 = vertices[1].toVector3D();
+            vec3 ll4 = vertices[0].toVector3D();
+            vec3 ur4 = vertices[2].toVector3D();
+
+            //top
+            //quad( 6, 5, 1, 2 );
+            vec3 lr5 = vertices[6].toVector3D();
+            vec3 ll5 = vertices[5].toVector3D();
+            vec3 ur5 = vertices[2].toVector3D();
+
+            //cout << "(" << ul.x() << "," << ul.y() << "," << ul.z() << ")" << endl;
+            //cout<<i<<endl;
+           // cout << "(" << ll.x() << "," << ll.y() << "," << ll.z() << ")" << endl;
+            //cout << "(" << ur.x() << "," << ur.y() << "," << ur.z() << ")" << endl;
+            //cout << "(" << lr.x() << "," << lr.y() << "," << lr.z() << ")" << endl;
+
+            vec3 norm;
+            bool on = false;
+
+            if(onPlane(ll,ur,lr,toExamine, velocity)){
+                norm = normal(ll,ur,lr);
+                changeVelocity(norm,i);
+                changePosition(norm,i);
+            }
+            if(onPlane(ll1,ur1,lr1,toExamine, velocity)){
+                norm = normal(ll1,ur1,lr1);
+                changeVelocity(norm,i);
+                changePosition(norm,i);
+            }
+            if(onPlane(ll2,ur2,lr2,toExamine, velocity)){
+                norm = normal(ll2,ur2,lr2);
+                changeVelocity(norm,i);
+                changePosition(norm,i);
+            }
+            if(onPlane(ll3,ur3,lr3,toExamine, velocity)){
+                norm = normal(ll3,ur3,lr3);
+                changeVelocity(norm,i);
+                changePosition(norm,i);
+            }
+            if(onPlane(ll4,ur4,lr4,toExamine, velocity)){
+                norm = normal(ll4,ur4,lr4);
+                changeVelocity(norm,i);
+                changePosition(norm,i);
+            }
+            if(onPlane(ll5,ur5,lr5,toExamine, velocity)){
+                norm = normal(ll5,ur5,lr5);
+                changeVelocity(norm,i);
+                changePosition(norm,i);
+            }
+       }
+
+    return true;
+}
+
+void MyPanelOpenGL::changePosition(const vec3& norm, int i){
+    if(fabs(norm.x())>0){
+        allParticles[i]->pos.setX(allParticles[i]->previousPos.x());
+    }
+    if(norm.y()>0){
+        allParticles[i]->pos.setY(allParticles[i]->previousPos.y());
+    }
+    if(fabs(norm.z())>0){
+        allParticles[i]->pos.setZ(allParticles[i]->previousPos.z());
+    }
+}
+
+void MyPanelOpenGL::changeVelocity(const vec3& norm, int i){
+
+    allParticles[i]->vel -= 2*-norm*QVector3D::dotProduct(-norm, allParticles[i]->vel);
+    allParticles[i]->vel *= allParticles[i]->friction;
+}
+
+bool MyPanelOpenGL::onPlane(const vec3& p1, const vec3& p2, const vec3& p3, const vec3& check, const vec3& vel){
+
+    vec3 norm = normal(p1,p2,p3);
+    /*float a = norm.x();
+    float b = norm.y();
+    float c = norm.z();
+
+    float x = a*(check.x()-p1.x());
+    float y = b*(check.y()-p1.y());
+    float z = c*(check.z()-p1.z());
+
+    return x+y+z < 0.04;*/
+
+    vec3 dir = -norm;
+
+    return QVector3D::dotProduct(dir,check) + allParticles[0]->VGetRadius() > 0.5 && QVector3D::dotProduct(vel, dir) > 0.04;
+}
+
+//Computes and returns the normal to the rectangle
+vec3 MyPanelOpenGL::normal(vec3 ll, vec3 ur, vec3 lr){
+
+    vec3 vector1 = -ll+lr;
+    vec3 vector2 = ur - lr;
+    vec3 toReturn = QVector3D::crossProduct(vector1, vector2);
+    toReturn.normalize();
+    return toReturn;
+}
+
+void MyPanelOpenGL::createVBO(){
+    destroyVBO(); //get rid of any old buffers
+
+    vboData = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+    vboData->create();
+    vboData->bind();
+    vboData->setUsagePattern(QOpenGLBuffer::StaticDraw);
+
+    vboData->allocate(numVertices*(sizeof(point4)+sizeof(color4))
+        + m_nparticles*(sizeof(color4)));
+    vboData->write(0,points,numVertices*sizeof(point4));
+    vboData->write(numVertices*sizeof(point4),colors,numVertices*sizeof(color4));
+    //vboData->write(2*numVertices*sizeof(point4)
+    //    ,partColors,m_nparticles*sizeof(color4));
+
+
+    //delete [] points; points=NULL;
+   // delete [] colors; colors=NULL;
+}
+
+
+void MyPanelOpenGL::destroyVBO(){
+    if (vboData){
+        vboData->release();
+        delete vboData; vboData=NULL;
+    }
+}

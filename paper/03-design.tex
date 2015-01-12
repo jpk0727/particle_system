@@ -1,0 +1,77 @@
+\section{Design}
+
+%Describe the key components of your project design. This could be key concepts or data structures. Don't get overly technical about the actual code. Someone else should be able to design a similar project to yours by reading the design and implementing it in their own programming language. 
+
+The fundemental base of this design started with the fountain and cube in-class examples.  Both of these
+systems merged together yeild a particle system and a static environment that interact with each other.
+
+The first major design concept in this project was drawing different aspects
+of the same scene. Since we first brought together the fountain and cube
+in-class examples into one project, we needed to design our code to handle
+using two different shaders for the same project. To render a scene with static
+and dynamic components more easily, we split up our two shaders to render 
+moving components (ie particles) and static components (ie box walls). 
+The particle shader uses the kinematic information (i.e. position, velocity) 
+while the cube shader draws simply draws the verticles of walls
+of the cube.  When painting the scene, these shaders must be applied consecutivly 
+to draw both elements for each motion update.
+
+
+In order to have more control over the particles, we created our own particle class.
+This class handles updating the location of the particle based on the the particle's
+velocity and gravitational force.  This class is influetial in handling particle-partilce
+collisions and is a helpfull layer of abstraction between the particle system and the
+individual particles. It is also a derived class of the octree library, which allows
+the octree implementation to use the particles in its own methods. 
+
+The next design component involved how to get the particles to be interactive rather than simply 
+following the basic path set forth for them by basic influence of gravitation force without interaction
+with the environment. Equations of motion shown below:
+\begin{equation*}
+  v_{f} = v_{o}  +\mu*g \\ 
+\end{equation*}
+\begin{equation*}
+  p_{f} = p_{o} +V_{f}*dt
+\end{equation*}
+The imported octree data structure was influential at this point because it
+allowed the particles to be quickly located with respect to their relative locations to each
+other and within the static environment. The octree does this by subdividing the cube recursivly
+into eight octants and keeps track of which subdivisions a particle is located within.
+
+The next design feature was implementing particle collision. At first, we implemented a means
+for the each particle to run collision detection with every other particle. This code was 
+terribly inefficient and ran in $O(n^2)$ time. 
+Once we learned about ocrees and incorperated one into our design, collision detection 
+became much more efficient. The octree can triavially check for collisions between
+particles by only checking particles within each subdivision. The time complexity is
+now much less, but also much more difficult to define numerically.
+
+Finally, wall collision is a major design concept we achieved. Wall collision is 
+handled through a method
+that checks if a point is close to and moving toward a plane.  Wall collisions must also
+preserve energy. In other words, when a ball drops from a certain height, the ball could
+bounce back to the same height if friction was not present. However, to make our design
+more realistic, a coefficient of friction for both ball collisions and wall collisions
+was added so that after some time the particles reach a steady state.  By designing wal
+l collisions, particles can interact with any kind of flat surface
+(not just the walls of a cube).  While the vertices of the cube are hard-coded into this
+program, one could specify the vertices of any three dimential shape and the system should
+adjust accordingly.
+
+The design of wall collisions also made it quite simple for particles to react with a changing
+(rotating) environment.  As mentioned above, the wall collisions are simply determined by the
+surfaces that make up the static environment.  Thus, by applying rotation matrices to each of
+the vertices of the cube, the particles are able to interact with a changing angle and positoin.
+This design choice makes the particle interactions in this program applicable to many different environments.  
+
+\textbf{Design outline:}
+\begin{itemize}
+  \item{Obtain or implement a particle system and a static environment}
+  \item{Paint the static environment and particle system using two different shaders}
+  \item{Implement a particle class that maintains position, velocity and other necessary information}
+  \item{Implement an octree and add all particles into this data structure}
+  \item{Implement wall collision detection}
+  \item{Modify the octree and the particle class for particle-particle collision detection}
+  \item{For every time step, adjust each particle's position, check wall collision, update the octree which in turn checks for particle collisions, and update velocities and positions accordingly}
+  \item{Have particles respond to rotations of the static environment}
+\end{itemize}

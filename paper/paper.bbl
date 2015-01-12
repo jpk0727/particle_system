@@ -1,0 +1,32 @@
+\begin{thebibliography}{1}
+
+\bibitem{fluidSim}
+{Balint Miklos}.
+\newblock Real-time fluid simulation using height fields.
+\newblock 2004.
+
+\bibitem{professor}
+A.~Danner.
+\newblock Provided Starter Code and Helped During Office Hours.
+
+\bibitem{liquidfun}
+{Google}.
+\newblock Liquidfun.
+\newblock {http://google.github.io/liquidfun}.
+
+\bibitem{octree}
+{Ioan A Sucan}.
+\newblock Flexible-collision-library.
+\newblock https://github.com/flexible-collision-library.
+
+\bibitem{octree2}
+{Mykola Konyk}.
+\newblock Spatial-collision-datastructures.
+\newblock https://github.com/ttvd/spatial-collision-datastructures.
+
+\bibitem{viscoelastic}
+{Simon Clavet, Philippe Beaudoin, and Pierre Poulin}.
+\newblock {Particle-based Viscoelastic Fluid Simulation}.
+\newblock 2005.
+
+\end{thebibliography}

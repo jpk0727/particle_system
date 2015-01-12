@@ -1,0 +1,24 @@
+\section{Current Progress}
+
+The first thing we accomplished was bringing together the fountain and cube inclass examples into one project. We did this because we want to have a particle simulation along with a scene and we plan on using an open cube as the boundaries of our scene. To do this correctly, we needed to learn how to use multiple shaders and switch between them because the cube and particle shaders are very different. The particle shader uses the particle information (ie position, velocity) while the cube shader draws the verticles of walls of the cube.
+
+We had troubles having both scenes show up at the same time. Ultimatly, we needed to enable the depth mask before the call to GLClear so that the scene would not be earased. Also, we needed to create two different paint functions, one to paint the members of the scene that were static and one to paint the moving pieces. 
+
+In order to have more control over the particles, we created our own particle class. This class handles updating the location of the particle based on the physics equations that were previously located in the particle shader. The next hurdle we needed to go through once we had our particle class and update function was figuring out how to right the information to the VBO. To do this, we stored the position information for all the particles for a given time step to a temporary array and then wrote this informaiton to the VBO at once. 
+
+Next we started thinking about how to get the particles to be interactive instead of just following the basic path set forth for them by the equation with gravity provided in the fountain example. We imported from github an octree spacial collision detection data-structure. We then redesigned our particle class to fit the specification for a spacial object abstract class provided in the library. Then we created an instance of an octree in mypanelopengl and added the particle objects to the octree to keep track of their positions. We have not gotten any of the Octree functionality working, but hopefully we will be able to detect when particles are in close proximity to others by subdividing the space and then complete an action (ie have the particles bounce off eachother) if they come in contact. Also, we will have the particles bounce of walls and possibly interact with other simple elements of the scene. Once we get are particles to do all of this, we can hopefully change our physics equations for how the particles move when not in contact with anything and how they move when in contact with objects or other particles to more accuratly model water. 
+
+GitHub For Octree:
+
+\url{https://github.com/ttvd/spatial-collision-datastructures}
+
+\textbf{Accomplishments:}
+\begin{itemize}
+  \item{Cube and Fountain working using two shaders}
+  \item{Implementing particle class and interacting with particles}
+  \item{Beginning work on octrees. Learning about how they work}
+  \item{Beginning work on collision detection}
+\end{itemize}
+
+
+
